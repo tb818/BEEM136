@@ -1,0 +1,40 @@
+\begin{center}
+\begin{tabular}{lclc}
+\toprule
+\textbf{Dep. Variable:}              & la\_total\_volume & \textbf{  R-squared:         } &      0.436   \\
+\textbf{Model:}                      &        OLS        & \textbf{  Adj. R-squared:    } &      0.434   \\
+\textbf{Method:}                     &   Least Squares   & \textbf{  F-statistic:       } &      23.68   \\
+\textbf{Date:}                       &  Mon, 01 Dec 2025 & \textbf{  Prob (F-statistic):} &   5.66e-77   \\
+\textbf{Time:}                       &      14:55:58     & \textbf{  Log-Likelihood:    } &    -98730.   \\
+\textbf{No. Observations:}           &        12720      & \textbf{  AIC:               } &  1.976e+05   \\
+\textbf{Df Residuals:}               &        12674      & \textbf{  BIC:               } &  1.979e+05   \\
+\textbf{Df Model:}                   &           45      & \textbf{                     } &              \\
+\textbf{Covariance Type:}            &      cluster      & \textbf{                     } &              \\
+\bottomrule
+\end{tabular}
+\begin{tabular}{lcccccc}
+                                     & \textbf{coef} & \textbf{std err} & \textbf{z} & \textbf{P$> |$z$|$} & \textbf{[0.025} & \textbf{0.975]}  \\
+\midrule
+\textbf{Intercept}                   &   -3754.6861  &     1103.279     &    -3.403  &         0.001        &    -5917.073    &    -1592.300     \\
+\textbf{exposure}                    &       3.7245  &        1.398     &     2.665  &         0.008        &        0.985    &        6.464     \\
+\textbf{post:exposure}               &      -1.3812  &        1.321     &    -1.045  &         0.296        &       -3.971    &        1.209     \\
+\textbf{log\_residents\_total}       &     481.5460  &       77.785     &     6.191  &         0.000        &      329.090    &      634.002     \\
+\textbf{prop\_eth\_white}            &     445.4695  &      303.180     &     1.469  &         0.142        &     -148.752    &     1039.691     \\
+\textbf{prop\_hh\_owned}             &   -2650.0064  &      572.124     &    -4.632  &         0.000        &    -3771.349    &    -1528.664     \\
+\textbf{unemployment\_rate}          &    2490.0943  &     1560.737     &     1.595  &         0.111        &     -568.894    &     5549.083     \\
+\bottomrule
+\end{tabular}
+\begin{tabular}{lclc}
+\textbf{Omnibus:}       & 17508.694 & \textbf{  Durbin-Watson:     } &      1.669   \\
+\textbf{Prob(Omnibus):} &    0.000  & \textbf{  Jarque-Bera (JB):  } & 6951502.709  \\
+\textbf{Skew:}          &    7.849  & \textbf{  Prob(JB):          } &       0.00   \\
+\textbf{Kurtosis:}      &  116.444  & \textbf{  Cond. No.          } &   2.83e+03   \\
+\bottomrule
+\end{tabular}
+%\caption{OLS Regression Results}
+\end{center}
+
+Notes: \newline
+ [1] Standard Errors are robust to cluster correlation (cluster) \newline
+ [2] The condition number is large, 2.83e+03. This might indicate that there are \newline
+ strong multicollinearity or other numerical problems.
