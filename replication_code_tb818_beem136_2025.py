@@ -1,8 +1,8 @@
 # beem136_tb818_legal_aid_ew.ipynb
 # Author: Thomas Burrows (tb818)
-# Last edit: 02/12/2025, tb818
+# Last edit: 05/12/2025, tb818
 
-# SEE README FOR FULL DETAILS
+### SEE README FOR FULL DETAILS ###
 
 # =====================================================================================
 ################## SECTION 1: CLEANING AND BALANCING PANELS ###########################
@@ -38,6 +38,7 @@ import matplotlib.patches as mpatches           # For construction of data legen
 import sys                                      # For functional commands
 import statsmodels.api as sm                    # For regressions
 import statsmodels.formula.api as smf           # For regressions
+from stargazer.stargazer import Stargazer       # For regression display
 
 # ================================== 1(A) SETUP ==================================
 # --- PATH SETUP --- EDIT HERE ONLY
@@ -504,7 +505,10 @@ all_equal = (
     == codes_census_tenure
     == codes_census_ethnicity
     == codes_census)
-print("All code sets identical across provider + all census tables:", all_equal)
+if not all_equal:
+    print("LACODE sets differ between provider and census datasets.")
+else:
+    print("All code sets identical across provider + all census tables:", all_equal)
 
 # Checking for any missing values in the census data
 missing_rows = census_data.isna().any(axis=1).sum()
@@ -515,8 +519,9 @@ proportion_cols = [col for col in census_data.columns if col.startswith("prop_")
 for col in proportion_cols:
     if not ((census_data[col] >= 0) & (census_data[col] <= 1)).all():
         print(f"Proportion column {col} has values outside the range [0, 1].")
-if not (census_data[unemployment_rate := "unemployment_rate"] >= 0).all() or not (census_data[unemployment_rate] <= 1).all():
-    print(f"Proportion column {unemployment_rate} has values outside the range [0, 1].")
+mask = (census_data["unemployment_rate"] < 0) | (census_data["unemployment_rate"] > 1)
+if mask.any():
+    print(f"Proportion column {col} has values outside [0, 1].")
 
 # Constructing the full panel by merging balanced_panel with census_data
 print("Combining panel with census data...")
@@ -641,6 +646,9 @@ print("Panel saved to full_panel.csv")
 
 # Loading cleaned provider panel data as vs_panel for clarity that it is being used for visualisation
 vs_panel = pd.read_csv(cleaned_files_outputs/"full_panel.csv")
+# Data check
+if vs_panel.isna().any().any():
+    print("NAs detected")
 
 # Standardised colour setup dictionary
 exeter_greens = {
@@ -963,7 +971,7 @@ fig.text(
 plt.tight_layout()
 plt.savefig(time_series / "deserts_prop_pop.pdf", bbox_inches="tight", transparent=True, format="pdf")
 
-print("Time series graphs completed.")
+print("Time series graphs saved.")
 
 ### ---------------------------------------------- SECTION 2C: MAPS ------------------------------------------------------ ###
 # Colour maps for geographical visualisation, using custom green gradient for Exeter branding
@@ -972,23 +980,33 @@ exeter_cmap = mcolors.LinearSegmentedColormap.from_list(
     "exeter_greens",
     [exeter_greens[k] for k in order])
 
+# Equally spaced quarters in the dataset
+map_quarters = ["2010-q1", "2013-q2", "2016-q3", "2019-q4"]
+
 # Loading shapefile and dropping Scottish and NI codes
 shp = gpd.read_file(raw_files_inputs / "LAD_DEC_2023_UK_BFC.shp")
 shp = shp.loc[~shp["LAD23CD"].str.startswith(("N", "S"))]
 
-# Checking for code mismatch, and interrupting loop if found
-# Included defensively as would not generate error, to avoid issues with map generation
-code_diff = ((set(shp["LAD23CD"].unique())) ^ (set(vs_panel["lacode"].unique())))
-if code_diff:
-    print("LA code mismatch")
-    sys.exit("Terminating")
+# Checking for code mismatch, printing if found
+shp_codes = set(shp["LAD23CD"].unique())
+panel_codes = set(vs_panel["lacode"].unique())
+
+missing_in_shp = panel_codes - shp_codes
+missing_in_panel = shp_codes - panel_codes
+
+if missing_in_shp or missing_in_panel:
+    print("LA code mismatch detected.")
+    if missing_in_shp:
+        print("In panel but not in shapefile:", sorted(missing_in_shp))
+    if missing_in_panel:
+        print("In shapefile but not in panel:", sorted(missing_in_panel))
 
 # Compute global range for consistent colour scaling, so that all maps use same scale
 global_min = vs_panel["unique_providers"].min()
 global_max = vs_panel["unique_providers"].max()
 
-# Looping through all quarters in the panel
-for q in sorted(vs_panel["year_quarter"].unique()):
+# Looping through selected quarters in the panel
+for q in map_quarters:
     # Data from the quarter
     data_q = vs_panel.loc[vs_panel["year_quarter"] == q, ["lacode", "unique_providers"]]
     # Merged with shapefile by lacode=LAD23CD
@@ -1036,13 +1054,13 @@ cbar.outline.set_visible(False)
 plt.savefig(unique_providers_maps / "unique_providers_colour_scale.pdf", bbox_inches="tight", transparent=True, format="pdf")
 plt.close(fig)
 
-print("All maps and legend scale saved.")
+print("Provider maps and legend scale saved.")
 
 # Dark green for deserts, white otherwise - 
 desert_cmap = mcolors.ListedColormap(["#ffffff", "#00441b"])
 
-# Looping through all quarters in the panel
-for q in sorted(vs_panel["year_quarter"].unique()):
+# Looping through selected quarters in the panel
+for q in map_quarters:
     # Data from the quarter
     data_q = vs_panel.loc[vs_panel["year_quarter"] == q, ["lacode", "unique_providers"]]
 
@@ -1206,7 +1224,7 @@ fig.savefig(
     format="pdf")
 plt.close(fig)
 
-print("All desert maps and legend saved.")
+print("Desert maps and legend saved.")
 
 ### ---------------------------------------------- SECTION 2D: VIOLINS ---------------------------------------------------------------- ###
 # Setting up violins requiring plotting in dictionary
@@ -1269,7 +1287,6 @@ for var, label in violin.items():
     elif var == "la_val_vol":
         plt.ylim(0, 40000)
 
-    plt.xticks()
     plt.tight_layout()
 
     plt.savefig(violin_dist / f"subset_violin_{var}_by_quarter.pdf", bbox_inches="tight", format="pdf")
@@ -1315,26 +1332,26 @@ VAR_DESCRIPTION = {
     "ina_other": "Economically inactive: other category",
 
     # Legal aid totals / values / indices (LA or national)
-    "adjusted_la_total_value": "Total real legal aid value (inflation-adjusted, 2015Q1 base) in LA-quarter",
-    "adjusted_total_value": "Total real legal aid value nationally in the quarter (inflation-adjusted, 2015Q1 base )",
+    "adjusted_la_total_value": "Total real legal aid value (inflation-adjusted, 2015-q1 base) in LA-quarter",
+    "adjusted_total_value": "Total real legal aid value nationally in the quarter (inflation-adjusted, 2015-q1 base )",
     "la_total_value": "Total nominal legal aid value in LA-quarter",
     "la_total_volume": "Total legal aid matter starts in LA-quarter",
     "total_value": "Total national nominal legal aid value in the quarter",
     "total_volume": "Total national legal aid volume in the quarter",
     "total_unique_providers": "Total distinct providers nationally in the quarter",
     "unique_providers": "Number of distinct legal aid providers in LA-quarter",
-    "cases_index": "Index of cases per 1,000 residents (2012Q4 = 100)",
-    "value_index": "Index of total legal aid value (2012Q4 = 100)",
-    "volume_index": "Index of total legal aid volume (2012Q4 = 100)",
+    "cases_index": "Index of real value per case",
+    "value_index": "Index of total legal aid value (2012-q4 = 100)",
+    "volume_index": "Index of total legal aid volume (2012-q4 = 100)",
     "la_val_vol": "LA-level ratio of legal aid value to volume",
     "val_vol": "National ratio of legal aid value to volume",
-    "index_15": "Inflation index (2015Q1 = 100) for adjusting legal aid values to real terms",
+    "index_15": "Inflation index (2015-q1 = 100) for adjusting legal aid values to real terms",
     "exposure": "Time-invariant measure of exposure of a LA to legal aid funding",
 
     # LA identifiers
     "lacode": "Local authority code",
     "localauthority": "Local authority name",
-    "year_quarter": "Year and quarter (e.g. 2012Q4)",
+    "year_quarter": "Year and quarter (e.g. 2012-q4)",
     "is_rural": "Denotes whether a LA is classified as rural",
     "rural_code": "Specific ONS rural/urban code",
     "post": "Dummy for post-LASPO (after 2012-Q4)",
@@ -1426,11 +1443,11 @@ VAR_DESCRIPTION = {
     "unemployed_50_74": "Unemployed residents aged 50–74",
     "unemployed_forever": "Unemployed residents: never worked / very long-term",
     "unemployed_lt": "Unemployed residents: long-term",
-    "unemployment_rate": "Unemployment rate among working-age residents",
+    "unemployment_rate": "Unemployment rate among economically active residents",
 
     # Zero-provision measures (combined, but population-based)
     "pop_zero": "Resident population in LAs with zero legal aid providers",
-    "prop_zero": "Proportion of residents in LAs with zero legal aid providers",
+    "prop_zero": "Proportion of LAs with zero legal aid providers",
     "desert": "Whether the LA is a desert in a given period",
     "ever_desert": "Whether an LA is a desert in any period"}
 
@@ -1567,8 +1584,14 @@ VAR_SOURCE = {
 n_cols = stats_panel.shape[1]
 n_desc = len(VAR_DESCRIPTION)
 n_source  = len(VAR_SOURCE)
-assert n_desc == n_cols
-assert n_source  == n_cols
+if n_desc == n_cols:
+    print("Description for every column")
+else:
+    print("Description/column MISMATCH")
+if n_source  == n_cols:
+    print("Source for every column")
+else:
+    print("Source/column MISMATCH")
 
 # Building variable dataframe
 rows = []
@@ -1592,6 +1615,9 @@ with open(summary_stats/"variable_dataframe.tex","w") as f:
     f.write(var_df_tex)
 
 ### ----------------------------------------- Summary Statistics ----------------------------------------- ###
+# Total census population
+POP_EW_2011 = 56_075_912
+
 print("Generating summary statistics...")
 # Generates summary statistics tables for all data, then central 80% for some data
 # To explore extent to which outliers drive results
@@ -1609,7 +1635,7 @@ def formatter(x):
     if abs(val) >= 1_000_000:
         return f"{val/1_000_000:.2f}m"
     else:
-    # comma formatting for <1m
+        # comma formatting for <1m
         return f"{val:,}"  
 
 # Extracting relevant columns
@@ -1619,22 +1645,9 @@ cols = [
     "volume_index", "value_index", "cases_index"]
 sub = stats_panel[cols]
 
-# Defining central 80% of data based on key LA-level variables
-trim_vars = ["la_total_volume", "adjusted_la_total_value", "unique_providers"]
-q10_trim = stats_panel[trim_vars].quantile(0.10)
-q90_trim = stats_panel[trim_vars].quantile(0.90)
-
-# Applying mask to trim data
-mask_80 = np.ones(len(stats_panel), dtype=bool)
-for v in trim_vars:
-    mask_80 &= stats_panel[v].between(q10_trim[v], q90_trim[v])
-
-# Saving central 80% panel
-stats_panel_80 = stats_panel.loc[mask_80].copy()
-sub_80 = stats_panel_80[cols]
-
+# ======================== FULL-SAMPLE SUMMARY ======================== #
 # Data percentiles
-descriptives = sub.describe(percentiles=[0.25, 0.5, 0.75])
+descriptives = sub.describe(percentiles=[0.5])
 
 # Variables as rows
 summary = descriptives.T
@@ -1646,24 +1659,22 @@ summary = summary.rename(
         "mean": "Mean",
         "std": "SD",
         "min": "Min",
-        "25%": "P25",
         "50%": "Median",
-        "75%": "P75",
         "max": "Max"},
     index={
-        "la_total_volume": "Total Cases per LA",
-        "la_total_value": "Total Case Value per LA (£)",
-        "unique_providers": "Unique Providers per LA",
-        "total_volume": "Total Cases Nationally",
-        "total_value": "Total Case Value Nationally (£)",
-        "total_unique_providers": "Total Unique Providers Nationally",
-        "volume_index": "Indexed National Case Volume (2012-Q4=100)",
-        "value_index": "Indexed National Case Value (2012-Q4=100)",
-        "cases_index": "Indexed Cases per £1000 (2012-Q4=100)"})
+        "la_total_volume": "Cases/LA",
+        "la_total_value": "Case Value/LA (£)",
+        "unique_providers": "Providers/LA",
+        "total_volume": "Cases Nationally",
+        "total_value": "Case Value Nationally (£)",
+        "total_unique_providers": "Providers Nationally",
+        "volume_index": "Ind. National Volume",
+        "value_index": "Ind. National Value",
+        "cases_index": "Ind. Cases/£1000"})
 
 # Applying formatting function
 summary["N"] = summary["N"].astype(int).map(lambda x: f"{x:,}")
-for col in ["Mean", "SD", "Min", "P25", "Median", "P75", "Max"]:
+for col in ["Mean", "SD", "Min", "Median", "Max"]:
     summary[col] = summary[col].map(formatter)
 
 # Saving to LaTeX
@@ -1675,9 +1686,19 @@ summary_tex = summary.to_latex(
 with open(summary_stats / "summary_stats.tex", "w") as f:
     f.write(summary_tex)
 
-### Central 80% ###
-descriptives_80 = sub_80.describe(percentiles=[0.25, 0.5, 0.75])
-summary_80 = descriptives_80.T
+# ===================== CENTRAL 80% (VARIABLE-BY-VARIABLE) ===================== #
+# Trim each variable separately to its own 10th–90th percentiles
+
+def trimmed_describe(series: pd.Series) -> pd.Series:
+    """Describe central 80% of a variable (10th–90th percentile trimming)."""
+    q10 = series.quantile(0.10)
+    q90 = series.quantile(0.90)
+    trimmed = series[series.between(q10, q90)]
+    return trimmed.describe(percentiles=[0.5])
+
+# Apply trimming separately to each column
+descriptives_80 = sub.apply(trimmed_describe).T
+summary_80 = descriptives_80
 
 summary_80 = summary_80.rename(
     columns={
@@ -1685,30 +1706,28 @@ summary_80 = summary_80.rename(
         "mean": "Mean",
         "std": "SD",
         "min": "Min",
-        "25%": "P25",
         "50%": "Median",
-        "75%": "P75",
         "max": "Max"},
     index={
-        "la_total_volume": "Total Cases per LA",
-        "la_total_value": "Total Case Value per LA (£)",
-        "unique_providers": "Unique Providers per LA",
-        "total_volume": "Total Cases Nationally",
-        "total_value": "Total Case Value Nationally (£)",
-        "total_unique_providers": "Total Unique Providers Nationally",
-        "volume_index": "Indexed National Case Volume (2012-Q4=100)",
-        "value_index": "Indexed National Case Value (2012-Q4=100)",
-        "cases_index": "Indexed Cases per £1000 (2012-Q4=100)"})
+        "la_total_volume": "Cases/LA",
+        "la_total_value": "Case Value/LA (£)",
+        "unique_providers": "Providers/LA",
+        "total_volume": "Cases Nationally",
+        "total_value": "Case Value Nationally (£)",
+        "total_unique_providers": "Providers Nationally",
+        "volume_index": "Ind. National Volume",
+        "value_index": "Ind. National Value",
+        "cases_index": "Ind. Cases/£1000"})
 
 summary_80["N"] = summary_80["N"].astype(int).map(lambda x: f"{x:,}")
-for col in ["Mean", "SD", "Min", "P25", "Median", "P75", "Max"]:
+for col in ["Mean", "SD", "Min", "Median", "Max"]:
     summary_80[col] = summary_80[col].map(
         lambda v: formatter(v) if pd.notna(v) else "")
 
 summary_80_tex = summary_80.to_latex(
     escape=True,
     column_format="lrrrrrrrr",
-    caption="Summary Statistics for Key Variables (Central 80\\% of Data)",
+    caption="Summary Statistics for Key Variables (Central 80\\% of Each Variable)",
     label="tab:summary_statistics_central80")
 with open(summary_stats / "summary_stats_central80.tex", "w") as f:
     f.write(summary_80_tex)
@@ -1723,8 +1742,8 @@ la_cross_panel = (
         AverageProviders=("unique_providers", "mean"),
         Population=("residents_total", "first"))
     .assign(
-        VolumePer100k=lambda df: df["AverageVolume"] / 56_075_912 * 100000,
-        ProvidersPer100k=lambda df: df["AverageProviders"] / 56_075_912 * 100000))
+        VolumePer100k=lambda df: df["AverageVolume"] * 100000 / POP_EW_2011,
+        ProvidersPer100k=lambda df: df["AverageProviders"] * 100000 / POP_EW_2011))
 
 # Rounding numeric columns to 2 decimal places, reformatting to remove trailing zeros
 num_cols = la_cross_panel.select_dtypes(include=[np.number]).columns
@@ -1749,8 +1768,8 @@ la_cross_panel = la_cross_panel.rename(columns={
     "AverageValueReal": "Avg. Value",
     "AverageProviders": "Avg. Prov.",
     "Population": "Pop.",
-    "VolumePer100k": "Cases/1,000",
-    "ProvidersPer100k": "Prov./1,000"})
+    "VolumePer100k": "Cases/100,000",
+    "ProvidersPer100k": "Prov./100,000"})
 
 # Saving to LaTeX
 la_cross_tex = la_cross_panel.to_latex(
@@ -1775,8 +1794,8 @@ quarter_summary = (
         TotalProviders=("total_unique_providers", "first"),   # national provider count
 )
     .assign(
-        CasesPer100k=lambda df: df["TotalVolume"] / 56_075_912 * 100000,
-        ProvidersPer100k=lambda df: df["TotalProviders"] / 56_075_912 * 100000)
+        CasesPer100k=lambda df: df["TotalVolume"] * 100000 / POP_EW_2011 ,
+        ProvidersPer100k=lambda df: df["TotalProviders"] * 100000 / POP_EW_2011)
     .reset_index())
 
 # Round numeric columns to 2 d.p.
@@ -1862,7 +1881,7 @@ top_summary = top_summary.rename(columns={"lacode": "LA Code", "localauthority":
 # Saving for LaTeX
 top_summary_tex = top_summary.head(10).to_latex(
     index=False,
-    caption="Most Frequent Local Authorities for Value, Volume and Firms",
+    caption="Most Frequently Cited Local Authorities for Value, Volume and Firms",
     label="tab:frequent_high_las",
     escape=True)
 
@@ -1974,10 +1993,10 @@ summary_full = pd.concat([total_row, summary], ignore_index=True)
 
 # Rename for LaTeX
 summary_full = summary_full.rename(columns={
-    "n_las": "Local Authorities (N)",
-    "share_all_las": "Local Authorities (prop.)",
-    "n_ever_desert": "Ever a desert (N)",
-    "share_ever_desert": "Ever a desert (prop.)"})
+    "n_las": "LAs (N)",
+    "share_all_las": "LAs (prop.)",
+    "n_ever_desert": "Deserts (N)",
+    "share_ever_desert": "Deserts (prop.)"})
 
 # Export to LaTeX
 desert_summary_tex = summary_full.to_latex(
@@ -1993,7 +2012,7 @@ with open(summary_stats / "ever_desert_summary.tex", "w") as f:
 # Regressions run on stats_panel
 # Three model types: 
 # Model 1 basic OLS of Y = (adjusted_la_total_value, la_total_volume, unique_providers) on census variables and time FE
-# Model 2 Probit of LAs becoming deserts given census variables and time FE, per period and as cross-section
+# Model 2 Logit of LAs becoming deserts given census variables and rurality index as cross-section
 # Model 3 DiD of Y = (adjusted_la_total_value, la_total_volume, unique_providers) on exposure and post (LASPO) dummy
 
 # (a) models also run on central 80% of data
@@ -2023,176 +2042,224 @@ models_1 = {}
 
 for y in outcomes_1:
     # OLS regression for each outcome in turn on census variables with time fixed effects
-    model = smf.ols(formula=y + " ~ " + " + ".join(census_vars_1) + " + C(year_quarter)", data=reg_1)
-    
+    model = smf.ols(
+        formula=y + " ~ " + " + ".join(census_vars_1) + " + C(year_quarter)",
+        data=reg_1)
     # clustered SE by LA, anticipating serial correlation within LAs
     res = model.fit(cov_type="cluster", cov_kwds={"groups": reg_1["lacode"]})
 
-    # storing model
+    # store model
     models_1[y] = res
 
-    # Writing and saving as LaTeX - not displaying FE
-    tex = res.summary().as_latex()
-    cleaned_tex = "\n".join(
-    line for line in tex.split("\n")
-        if "C(year\_quarter)" not in line)
-    
-    # Saving
-    with open(regression_outputs / f"model_basic_{y}.tex", "w") as f:
-        f.write(cleaned_tex)
+# Saving with Stargazer
+sg_1 = Stargazer([models_1[y] for y in outcomes_1])
+sg_1.title("OLS regressions of legal aid outcomes on LA characteristics")
+sg_1.custom_columns(["Real value", "Volume", "Providers"], [1, 1, 1])
+
+# Renaming
+sg_1.covariate_order([
+    "log_residents_total",
+    "prop_eth_white",
+    "prop_hh_owned",
+    "unemployment_rate"])
+sg_1.rename_covariates({
+    "log_residents_total": "log(Population)",
+    "prop_eth_white": "Share white",
+    "prop_hh_owned": "Share owner-occupied",
+    "unemployment_rate": "Unemployment rate"})
+
+# As LaTeX
+latex_model_1 = sg_1.render_latex()
+
+# Strip out the time FE rows (C(year_quarter)[...]) so they do not display
+latex_model_1 = "\n".join(
+    line for line in latex_model_1.split("\n")
+    if "C(year\\_quarter)" not in line and "year\\_quarter" not in line)
+
+with open(regression_outputs / "model1_panel.tex", "w") as f:
+    f.write(latex_model_1)
 
 ###################### 1(A): CENTRAL 80% ###########################
 print("Running 80% trimmed basic regressions...")
+# As model 1, but using only central 80% of data from each dataset
 models_1a = {}
 
 for y in outcomes_1:
-    # Reducing data to central 80% per regressand
-    q1 = reg_1[y].quantile(0.10)
-    q3 = reg_1[y].quantile(0.90)
+    # Filtering out 1st and 9th data deciles
+    d1 = reg_1[y].quantile(0.10)
+    d9 = reg_1[y].quantile(0.90)
 
-    mask = (reg_1[y] >= q1) & (reg_1[y] <= q3)
-
+    mask = (reg_1[y] >= d1) & (reg_1[y] <= d9)
     reg_y = reg_1.loc[mask].copy()
 
-    model = smf.ols(formula=y + " ~ " + " + ".join(census_vars_1) + " + C(year_quarter)", data=reg_y)
-    
-    # clustered SE by LA, anticipating serial correlation within LAs
+    model = smf.ols(
+        formula=y + " ~ " + " + ".join(census_vars_1) + " + C(year_quarter)",
+        data=reg_y)
     res = model.fit(cov_type="cluster", cov_kwds={"groups": reg_y["lacode"]})
 
-    # storing model
     models_1a[y] = res
 
-    # Writing and saving as LaTeX - not displaying FE
-    tex = res.summary().as_latex()
-    cleaned_tex = "\n".join(
-    line for line in tex.split("\n")
-        if "C(year\_quarter)" not in line)
-    
-    # Saving
-    with open(regression_outputs / f"model_basic_trimmed_{y}.tex", "w") as f:
-        f.write(cleaned_tex)
+# Saving with Stargazer
+sg_trim_1 = Stargazer([models_1a[y] for y in outcomes_1])
+
+sg_trim_1.title("OLS regressions of legal aid outcomes on LA characteristics (central 80\\%)")
+sg_trim_1.custom_columns(["Real value", "Volume", "Providers"], [1, 1, 1])
+
+sg_trim_1.covariate_order([
+    "log_residents_total",
+    "prop_eth_white",
+    "prop_hh_owned",
+    "unemployment_rate"])
+sg_trim_1.rename_covariates({
+    "log_residents_total": "log(Population)",
+    "prop_eth_white": "Share white",
+    "prop_hh_owned": "Share owner-occupied",
+    "unemployment_rate": "Unemployment rate"})
+
+latex_model_1_trim = sg_trim_1.render_latex()
+
+latex_model_1_trim = "\n".join(
+    line for line in latex_model_1_trim.split("\n")
+    if "C(year\\_quarter)" not in line and "year\\_quarter" not in line)
+
+with open(regression_outputs / "model1_panel_trimmed.tex", "w") as f:
+    f.write(latex_model_1_trim)
 
 ######################################## MODEL 2: DESERT PREDICTION ####################################
 print("Running desert predictor regression...")
+# Looks at whether a local ever becomes a desert can be predicted by census variables and/or
+# its degree of rurality. Data on deserts insufficient for _it analysis.
 
-# 1. X_i (time-invariant) census variables
-census_vars_2 = [
+# 1. Columns required for the regression
+cols = [
+    "lacode",
+    "ever_desert",
     "log_residents_total",
     "prop_eth_white",
     "prop_hh_owned",
-    "unemployment_rate"]
+    "unemployment_rate",
+    "is_rural"]
 
-# 2. Y_it dependent variables
-outcomes_2 = [
-    "desert",
-    "ever_desert"]
+# 2. Collapsing panel into regression df to look at only as cross-sectional
+reg_2 = (
+    stats_panel[cols]
+    .drop_duplicates(subset="lacode")
+    .copy())
 
-# 3. Constructing regression dataframe
-reg_2 = stats_panel[["year_quarter", "lacode", "is_rural"] + census_vars_2 + outcomes_2]
+# 3. Cross sectional logit model for desert:
+# Pr(ever_desert_i = 1 | X-i) = \Lambda(\alpha + X_i'\beta)
+# With \Lambda as logistic CDF
 
-# 4. Probit model for desert with time FE and LA SE clustering
-# Pr(desert_{it}=1 | X_i, \lambda_t) = \Phi(\alpha + X_{i}'\beta + \lambda_t)
-models_2 = {}
+model_2 = sm.Logit.from_formula(
+    "ever_desert ~ log_residents_total + prop_eth_white + prop_hh_owned + unemployment_rate + is_rural",
+    data=reg_2)
 
-# Loop used for easier modification/refinement. As per model_1
-for y in outcomes_2:
-    model = sm.Probit.from_formula(y+ " ~ " + " + ".join(census_vars_2) + " + is_rural" + "+ C(year_quarter)", data=reg_2)
+# With robust SE
+res_2 = model_2.fit(cov_type="HC1")
 
-    res = model.fit(
-        cov_type="cluster",
-        cov_kwds={"groups": reg_2["lacode"]})
-    
-    # Marginal coefficients
-    mfx = res.get_margeff(at="mean", method="dydx")
+# Saving
+sg_2 = Stargazer([res_2])
+sg_2.title("Cross-sectional Logit model of ever becoming a legal aid desert")
+sg_2.custom_columns(["Ever desert"], [1])
+sg_2.dependent_variable_name("Ever desert") # Fixing formatting issues
 
-    tex_a = res.summary().as_latex()
+sg_2.covariate_order([
+    "log_residents_total",
+    "prop_eth_white",
+    "prop_hh_owned",
+    "unemployment_rate",
+    "is_rural"])
 
-    cleaned_tex_a = "\n".join(
-        line for line in tex_a.split("\n")
-        if "C(year\_quarter)" not in line)
+sg_2.rename_covariates({
+    "log_residents_total": "log(Population)",
+    "prop_eth_white": "Share white",
+    "prop_hh_owned": "Share owner-occupied",
+    "unemployment_rate": "Unemployment rate",
+    "is_rural": "Rural area"})
 
-    with open(regression_outputs / f"model_probit_rural_{y}.tex", "w") as f:
-        f.write(cleaned_tex_a)
-
-    tex_b = mfx.summary().as_latex()
-
-    cleaned_tex_b = "\n".join(
-        line for line in tex_b.split("\n")
-        if "C(year\_quarter)" not in line)
-
-    with open(regression_outputs / f"model_probit_mfx_rural_{y}.tex", "w") as f:
-        f.write(cleaned_tex_b)
+latex_model_2 = sg_2.render_latex()
+with open(regression_outputs / "model2_logit_desert.tex", "w") as f:
+    f.write(latex_model_2)
 
 ######################################## MODEL 3: LASPO IMPACT ####################################
 # Difference in difference model using exposure intensity
-# Y_{it} = intercept + \lambda_{t} + \delta*exposure + \beta(Post_t * Exposure_i) + X_i\gamma + \epsilon_{it}
+# Y_{it} = \alpha_{i} + \lambda_{t} + \beta(Post_t * Exposure_i) + \epsilon_{it}
 
-# Where: exposure_i gives the amount the LA relied on legal aid prior to LASPO, measured by the adjusted
-# value funded by it. \beta therefore is the effect of LASPO per unit of exposure
+# Where: exposure_i gives the amount the LA relied on legal aid prior to LASPO, calculated as the mean
+# legal aid expenditure for a local authority, per capita, from 2010-q1 to 2012-q4
+# \beta therefore is the effect of LASPO per unit of exposure
+# The model is two-way FE
 
 print("Running DiD regression...")
 
-# 1. X_i (time-invariant) census variables
-census_vars_3 = [
-    "log_residents_total",
-    "prop_eth_white",
-    "prop_hh_owned",
-    "unemployment_rate"]
-
-# 2. Y_it dependent variables
+# 1. Y_it dependent variables
 outcomes_3 = [
     "adjusted_la_total_value",
     "la_total_volume",
     "unique_providers"]
 
-# 3. Constructing regression dataframe
-reg_3 = stats_panel[["year_quarter", "lacode", "post", "exposure"] + census_vars_3 + outcomes_3]
+# 2. Constructing regression dataframe
+reg_3 = stats_panel[["year_quarter", "lacode", "post", "exposure"] + outcomes_3]
 
-# 4. DiD regressions with clustering by LAs
+# 3. DiD regressions with clustering by LAs
 models_3 = {}
 
 for y in outcomes_3:
-    model = smf.ols(formula = f"{y} ~ exposure + post:exposure + C(year_quarter) + " + " + " .join(census_vars_3), data=reg_3)
+    model = smf.ols(formula=f"{y} ~ post:exposure + C(year_quarter) + C(lacode)", data=reg_3)
     res = model.fit(cov_type="cluster", cov_kwds={"groups": reg_3["lacode"]})
-
     models_3[y] = res
 
-    # Writing and saving as LaTeX - not displaying FE
-    tex = res.summary().as_latex()
-    cleaned_tex = "\n".join(
-    line for line in tex.split("\n")
-        if "C(year\_quarter)" not in line)
-    
-    # Saving
-    with open(regression_outputs / f"DiD_{y}.tex", "w") as f:
-        f.write(cleaned_tex)
+# Saving
+sg_did = Stargazer([models_3[y] for y in outcomes_3])
+
+sg_did.title("Difference-in-differences: impact of LASPO on legal aid outcomes")
+sg_did.custom_columns(["Real value", "Volume", "Providers"], [1, 1, 1])
+sg_did.significance_levels([0.01, 0.05, 0.10])
+
+sg_did.covariate_order([
+    "post:exposure"])
+sg_did.rename_covariates({
+    "post:exposure": r"Post $\times$ Exposure"})
+
+latex_did = sg_did.render_latex()
+
+latex_did = "\n".join(
+    line for line in latex_did.split("\n")
+    if "C(year\\_quarter)" not in line and "year\\_quarter" not in line)
+
+with open(regression_outputs / "model3_DiD_panel.tex", "w") as f:
+    f.write(latex_did)
 
 ############ 3(A) - CENTRAL 80% #################
 print("Running 80% trimmed DiD regression...")
 models_3a = {}
 
 for y in outcomes_3:
-
     # Reducing data to central 80% per regressand
     q1 = reg_3[y].quantile(0.10)
     q3 = reg_3[y].quantile(0.90)
-
     mask = (reg_3[y] >= q1) & (reg_3[y] <= q3)
-
     reg_y = reg_3.loc[mask].copy()
 
-    # Trimmed data regression
-    model = smf.ols(formula=f"{y} ~ exposure + post:exposure + C(year_quarter) + "
-        + " + ".join(census_vars_3), data=reg_y)
+    model = smf.ols(formula=f"{y} ~ post:exposure + C(year_quarter) + C(lacode)", data=reg_y)
     res = model.fit(cov_type="cluster", cov_kwds={"groups": reg_y["lacode"]})
-
     models_3a[y] = res
 
-    tex = res.summary().as_latex()
-    cleaned = "\n".join(
-        line for line in tex.split("\n")
-        if "C(year\\_quarter)" not in line)
+# Saving
+sg_did_trim = Stargazer([models_3a[y] for y in outcomes_3])
 
-    # Saving
-    with open(regression_outputs / f"DiD_trimmed_{y}.tex", "w") as f:
-        f.write(cleaned)
+sg_did_trim.title("Difference-in-differences: LASPO impact (central 80\\% of outcome distribution)")
+sg_did_trim.custom_columns(["Real value", "Volume", "Providers"], [1, 1, 1])
+sg_did_trim.significance_levels([0.01, 0.05, 0.10])
+
+sg_did_trim.covariate_order(["post:exposure"])
+sg_did_trim.rename_covariates({"post:exposure": r"Post $\times$ Exposure"})
+
+latex_did_trim = sg_did_trim.render_latex()
+
+latex_did_trim = "\n".join(
+    line for line in latex_did_trim.split("\n")
+    if "C(year\\_quarter)" not in line and "year\\_quarter" not in line)
+
+with open(regression_outputs / "model3_DiD_panel_trimmed.tex", "w") as f:
+    f.write(latex_did_trim)

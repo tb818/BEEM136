@@ -1,7 +1,8 @@
-PACKAGE AND LANGUAGE VERSIONS
-NOTE WHERE ALL DATASETS CAME FROM
-PYTHON VIRTUAL ENVIRONMENT FOR PACKAGES
-REGRESSIONS: FIX EVER_DESERT PROBIT; CHECK ALL TABLES
+TO DO:
+(1) Final code sanity CHECK and commenting
+(2) Determine package and language versions and ensure replication code runs as .py file with virtual ENVIRONMENT
+(3) README: including cut text, where datasets came from
+(4) Git compatability with LFS
 
 Legal Aid – Dataset User Guide
 Raw Data
