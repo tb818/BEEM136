@@ -482,6 +482,9 @@ census_data = (
     .merge(census_clean_tenure, on="lacode", how="outer")
     .merge(census_clean_ethnicity, on="lacode", how="outer"))
 census_data = census_data.loc[:, ~census_data.columns.duplicated(keep="first")]
+# Checking that residents data is internally consistent for census then dropping
+assert (census_data["residents_total"] == census_data["residents"]).all()
+census_data = census_data.drop(columns=["residents"])
 
 # CENSUS DATA CHECKS
 print("Checking census data...")
@@ -609,6 +612,7 @@ full_panel = full_panel.merge(pop_zero, on="year_quarter", how="left")
 ### ----- ADDING URBAN-RURAL CLASSIFICATION ----- ###
 rural_urban = pd.read_csv(raw_files_inputs/"rural_urban_categories.csv")
 full_panel = full_panel.merge(rural_urban[["LAD23CD", "rural_code"]], left_on="lacode", right_on="LAD23CD", how="left")
+full_panel = full_panel.drop(columns=["LAD23CD"])
 full_panel["is_rural"] = full_panel["rural_code"].str.startswith("R").astype(int)
 
 # Final data check
@@ -1325,15 +1329,19 @@ VAR_DESCRIPTION = {
     "la_val_vol": "LA-level ratio of legal aid value to volume",
     "val_vol": "National ratio of legal aid value to volume",
     "index_15": "Inflation index (2015Q1 = 100) for adjusting legal aid values to real terms",
+    "exposure": "Time-invariant measure of exposure of a LA to legal aid funding",
 
     # LA identifiers
     "lacode": "Local authority code",
     "localauthority": "Local authority name",
     "year_quarter": "Year and quarter (e.g. 2012Q4)",
+    "is_rural": "Denotes whether a LA is classified as rural",
+    "rural_code": "Specific ONS rural/urban code",
+    "post": "Dummy for post-LASPO (after 2012-Q4)",
 
     # Population totals (Census)
-    "residents": "Total resident population",
     "residents_total": "Total resident population",
+    "log_residents_total": "Logarithm of total resident population",
     "males_total": "Total male residents",
     "females_total": "Total female residents",
     "household_dwellers": "People in households",
@@ -1358,6 +1366,7 @@ VAR_DESCRIPTION = {
     "total_85_89": "Residents aged 85–89",
     "total_90_over": "Residents aged 90+",
     "working_age": "Working-age population",
+    "log_working_age": "Logarithm of working-age population",
     "children": "Number of children",
     "pensioner": "Number of pension-eligible residents",
 
@@ -1421,7 +1430,9 @@ VAR_DESCRIPTION = {
 
     # Zero-provision measures (combined, but population-based)
     "pop_zero": "Resident population in LAs with zero legal aid providers",
-    "prop_zero": "Proportion of residents in LAs with zero legal aid providers"}
+    "prop_zero": "Proportion of residents in LAs with zero legal aid providers",
+    "desert": "Whether the LA is a desert in a given period",
+    "ever_desert": "Whether an LA is a desert in any period"}
 
 # Source mapping: Legal aid vs Census
 VAR_SOURCE = {
@@ -1443,10 +1454,14 @@ VAR_SOURCE = {
     "la_val_vol": "Legal aid",
     "val_vol": "Legal aid",
     "index_15": "ONS CPIH",
+    "desert": "Legal aid",
+    "ever_desert": "Legal aid",
+    "exposure": "Legal aid",
+    "post": "Legal aid",
 
     # Census-based (including derived proportions)
-    "residents": "Census",
     "residents_total": "Census",
+    "log_residents_total": "Census",
     "males_total": "Census",
     "females_total": "Census",
     "household_dwellers": "Census",
@@ -1470,6 +1485,7 @@ VAR_SOURCE = {
     "total_85_89": "Census",
     "total_90_over": "Census",
     "working_age": "Census",
+    "log_working_age": "Census",
     "children": "Census",
     "pensioner": "Census",
 
@@ -1541,7 +1557,18 @@ VAR_SOURCE = {
     "unemployment_rate": "Census",
 
     "pop_zero": "Census",
-    "prop_zero": "Census"}
+    "prop_zero": "Census",
+    
+    "is_rural": "Census",
+    "rural_code": "Census",
+    }
+
+# Sanity checking sizes
+n_cols = stats_panel.shape[1]
+n_desc = len(VAR_DESCRIPTION)
+n_source  = len(VAR_SOURCE)
+assert n_desc == n_cols
+assert n_source  == n_cols
 
 # Building variable dataframe
 rows = []
@@ -1566,7 +1593,7 @@ with open(summary_stats/"variable_dataframe.tex","w") as f:
 
 ### ----------------------------------------- Summary Statistics ----------------------------------------- ###
 print("Generating summary statistics...")
-# Generates summary statistics tables for all data, then central 80%
+# Generates summary statistics tables for all data, then central 80% for some data
 # To explore extent to which outliers drive results
 
 # Formatting function for summary statistics
@@ -1696,7 +1723,7 @@ la_cross_panel = (
         AverageProviders=("unique_providers", "mean"),
         Population=("residents_total", "first"))
     .assign(
-        VolumePer1k=lambda df: df["AverageVolume"] / 56_075_912 * 1000,
+        VolumePer100k=lambda df: df["AverageVolume"] / 56_075_912 * 100000,
         ProvidersPer100k=lambda df: df["AverageProviders"] / 56_075_912 * 100000))
 
 # Rounding numeric columns to 2 decimal places, reformatting to remove trailing zeros
@@ -1719,11 +1746,11 @@ for col in la_cross_panel.columns:
 la_cross_panel = la_cross_panel.rename(columns={
     "LocalAuthority": "Local Authority",
     "AverageVolume": "Avg. Volume",
-    "AverageValueReal": "Avg. Value (Real)",
-    "AverageProviders": "Avg. Providers",
+    "AverageValueReal": "Avg. Value",
+    "AverageProviders": "Avg. Prov.",
     "Population": "Pop.",
-    "VolumePer1k": "Cases/1,000",
-    "ProvidersPer100k": "Providers/1,000"})
+    "VolumePer100k": "Cases/1,000",
+    "ProvidersPer100k": "Prov./1,000"})
 
 # Saving to LaTeX
 la_cross_tex = la_cross_panel.to_latex(
@@ -1735,46 +1762,6 @@ la_cross_tex = la_cross_panel.to_latex(
 
 with open(summary_stats / "la_cross.tex", "w") as f:
     f.write(la_cross_tex)
-
-### Central 80% ###
-la_cross_panel_80 = (
-    stats_panel_80.groupby("lacode")
-    .agg(
-        LocalAuthority=("localauthority", "first"),
-        AverageVolume=("la_total_volume", "mean"),
-        AverageValueReal=("adjusted_la_total_value", "mean"),
-        AverageProviders=("unique_providers", "mean"),
-        Population=("residents_total", "first"))
-    .assign(
-        VolumePer1k=lambda df: df["AverageVolume"] / 56_075_912 * 1000,
-        ProvidersPer100k=lambda df: df["AverageProviders"] / 56_075_912 * 100000))
-
-num_cols_la80 = la_cross_panel_80.select_dtypes(include=[np.number]).columns
-la_cross_panel_80[num_cols_la80] = la_cross_panel_80[num_cols_la80].round(2)
-
-for col in la_cross_panel_80.columns:
-    if col in num_cols_la80:
-        la_cross_panel_80[col] = la_cross_panel_80[col].map(
-            lambda x, m=(col in value_cols): fmt_number(x, money=m))
-
-la_cross_panel_80 = la_cross_panel_80.rename(columns={
-    "LocalAuthority": "Local Authority",
-    "AverageVolume": "Avg. Volume",
-    "AverageValueReal": "Avg. Value (Real)",
-    "AverageProviders": "Avg. Providers",
-    "Population": "Pop.",
-    "VolumePer1k": "Cases/1,000",
-    "ProvidersPer100k": "Providers/1,000"})
-
-la_cross_80_tex = la_cross_panel_80.to_latex(
-    escape=True,
-    longtable=True,
-    index=False,
-    caption="Cross-Panel Average Statistics per Local Authority (Central 80\\% of Data)",
-    label="tab:cross_panel_la_stats_central80")
-
-with open(summary_stats / "la_cross_central80.tex", "w") as f:
-    f.write(la_cross_80_tex)
 
 ### ----- Time series averages across the panel period ----- ###
 quarter_summary = (
@@ -1788,9 +1775,8 @@ quarter_summary = (
         TotalProviders=("total_unique_providers", "first"),   # national provider count
 )
     .assign(
-        CasesPer1k=lambda df: df["TotalVolume"] / 56_075_912 * 1000,
-        ProvidersPer100k=lambda df: df["TotalProviders"] / 56_075_912 * 100000,
-    )
+        CasesPer100k=lambda df: df["TotalVolume"] / 56_075_912 * 100000,
+        ProvidersPer100k=lambda df: df["TotalProviders"] / 56_075_912 * 100000)
     .reset_index())
 
 # Round numeric columns to 2 d.p.
@@ -1803,7 +1789,7 @@ value_cols_q = ["TotalValueReal", "AvgLAValueReal"]
 def fmt_number(x, money=False):
     if pd.isna(x):
         return ""
-    s = f"{x:,.2f}"              # commas + 2 d.p.
+    s = f"{x:,.2f}"                 # commas + 2 d.p.
     s = s.rstrip("0").rstrip(".")  # strip trailing zeros / dot
     return f"£{s}" if money else s
 
@@ -1816,13 +1802,13 @@ for col in quarter_summary.columns:
 quarter_summary = quarter_summary.rename(columns={
     "year_quarter": "Quarter",
     "TotalVolume": "Volume",
-    "TotalValueReal": "Value (R)",
+    "TotalValueReal": "Value",
     "AvgLAVolume": "Avg. LA Vol.",
-    "AvgLAValueReal": "Avg. LA Value (R)",
-    "AvgProviders": "Providers/LA",
-    "TotalProviders": "Total Providers",
-    "CasesPer1k": "Cases/1,000",
-    "ProvidersPer100k": "Providers/100,000"})
+    "AvgLAValueReal": "Avg. LA Value",
+    "AvgProviders": "Prov./LA",
+    "TotalProviders": "Total Prov.",
+    "CasesPer100k": "Cases/100,000",
+    "ProvidersPer100k": "Prov./100,000"})
 
 # Export to LaTeX
 quarter_summary_tex = quarter_summary.to_latex(
@@ -1834,50 +1820,6 @@ quarter_summary_tex = quarter_summary.to_latex(
 
 with open(summary_stats / "quarter_summary.tex", "w") as f:
     f.write(quarter_summary_tex)
-
-### Central 80% ###
-quarter_summary_80 = (
-    stats_panel_80.groupby("year_quarter")
-    .agg(
-        TotalVolume=("total_volume", "first"),
-        TotalValueReal=("adjusted_total_value", "first"),
-        AvgLAVolume=("la_total_volume", "mean"),
-        AvgLAValueReal=("adjusted_la_total_value", "mean"),
-        AvgProviders=("unique_providers", "mean"),
-        TotalProviders=("total_unique_providers", "first"))
-    .assign(
-        CasesPer1k=lambda df: df["TotalVolume"] / 56_075_912 * 1000,
-        ProvidersPer100k=lambda df: df["TotalProviders"] / 56_075_912 * 100000)
-    .reset_index())
-
-num_cols_q80 = quarter_summary_80.select_dtypes(include="number").columns
-quarter_summary_80[num_cols_q80] = quarter_summary_80[num_cols_q80].round(2)
-
-for col in quarter_summary_80.columns:
-    if col in num_cols_q80:
-        quarter_summary_80[col] = quarter_summary_80[col].map(
-            lambda x, m=(col in value_cols_q): fmt_number(x, money=m))
-
-quarter_summary_80 = quarter_summary_80.rename(columns={
-    "year_quarter": "Quarter",
-    "TotalVolume": "Volume",
-    "TotalValueReal": "Value (R)",
-    "AvgLAVolume": "Avg. LA Vol.",
-    "AvgLAValueReal": "Avg. LA Value (R)",
-    "AvgProviders": "Providers/LA",
-    "TotalProviders": "Total Providers",
-    "CasesPer1k": "Cases/1,000",
-    "ProvidersPer100k": "Providers/100,000"})
-
-quarter_summary_80_tex = quarter_summary_80.to_latex(
-    escape=True,
-    longtable=True,
-    index=False,
-    caption="Quarterly Summary Statistics for Legal Aid (Central 80\\% of Data)",
-    label="tab:quarter_summary_stats_central80")
-
-with open(summary_stats / "quarter_summary_central80.tex", "w") as f:
-    f.write(quarter_summary_80_tex)
 
 ### ----- Most frequently highest LAs for value, volume and unique providers (firms) ----- ###
 print("Calculating most frequently cited local authorities...")
@@ -1926,41 +1868,6 @@ top_summary_tex = top_summary.head(10).to_latex(
 
 with open(summary_stats / "most_frequent_LAs_high.tex", "w") as f:
     f.write(top_summary_tex)
-
-### Central 80% ###
-top_value_80 = top_lacodes(stats_panel_80, "adjusted_la_total_value", n=100)
-top_volume_80 = top_lacodes(stats_panel_80, "la_total_volume", n=100)
-top_providers_80 = top_lacodes(stats_panel_80, "unique_providers", n=100)
-
-top_summary_80 = (
-    pd.concat(
-        [top_value_80, top_volume_80, top_providers_80],
-        axis=1,
-        keys=["Value", "Volume", "Firms"])
-    .fillna(0)
-    .astype(int))
-
-top_summary_80["Mentions"] = top_summary_80.sum(axis=1)
-top_summary_80 = (
-    top_summary_80
-    .sort_values("Mentions", ascending=False)
-    .reset_index()
-    .rename(columns={"index": "lacode"}))
-
-las_summary_stats_80 = stats_panel_80[["lacode", "localauthority"]].drop_duplicates()
-top_summary_80 = top_summary_80.merge(las_summary_stats_80, on="lacode", how="left")
-
-top_summary_80 = top_summary_80[["lacode", "localauthority", "Value", "Volume", "Firms", "Mentions"]]
-top_summary_80 = top_summary_80.rename(columns={"lacode": "LA Code", "localauthority": "Local Authority"})
-
-top_summary_80_tex = top_summary_80.head(10).to_latex(
-    index=False,
-    caption="Most Frequent Local Authorities for Value, Volume and Firms (Central 80\\% of Data)",
-    label="tab:frequent_high_las_central80",
-    escape=True)
-
-with open(summary_stats / "most_frequent_LAs_high_central80.tex", "w") as f:
-    f.write(top_summary_80_tex)
 
 ### ----- Most frequently lowest LAs for value, volume and unique providers (firms) ----- ###
 print("Calculating most frequently lowest local authorities...")
@@ -2013,45 +1920,7 @@ low_summary_tex = low_summary.head(10).to_latex(
 with open(summary_stats / "most_frequent_low_LAs.tex", "w") as f:
     f.write(low_summary_tex)
 
-### Central 80% ###
-low_value_80 = bottom_lacodes(stats_panel_80, "adjusted_la_total_value", n=100)
-low_volume_80 = bottom_lacodes(stats_panel_80, "la_total_volume", n=100)
-low_providers_80 = bottom_lacodes(stats_panel_80, "unique_providers", n=100)
-
-low_summary_80 = (
-    pd.concat(
-        [low_value_80, low_volume_80, low_providers_80],
-        axis=1,
-        keys=["Value", "Volume", "Firms"])
-    .fillna(0)
-    .astype(int))
-
-low_summary_80["Mentions"] = low_summary_80.sum(axis=1)
-low_summary_80 = (
-    low_summary_80
-    .sort_values("Mentions", ascending=False)
-    .reset_index()
-    .rename(columns={"index": "lacode"}))
-
-las_summary_stats_low80 = stats_panel_80[["lacode", "localauthority"]].drop_duplicates()
-low_summary_80 = low_summary_80.merge(las_summary_stats_low80, on="lacode", how="left")
-
-low_summary_80 = low_summary_80[["lacode", "localauthority", "Value", "Volume", "Firms", "Mentions"]]
-low_summary_80 = low_summary_80.rename(columns={
-    "lacode": "LA Code",
-    "localauthority": "Local Authority"})
-
-low_summary_80_tex = low_summary_80.head(10).to_latex(
-    index=False,
-    caption="Least Frequently Cited Local Authorities for Value, Volume and Firms (Central 80\\% of Data)",
-    label="tab:frequent_low_las_central80",
-    escape=True)
-
-with open(summary_stats / "most_frequent_low_LAs_central80.tex", "w") as f:
-    f.write(low_summary_80_tex)
-
 ### ----- Desert probability – LA-level summary ----- ###
-# N.B. No central 80% summary as deserts by definition outliers
 
 # One row per LA
 la_level = (
@@ -2105,19 +1974,16 @@ summary_full = pd.concat([total_row, summary], ignore_index=True)
 
 # Rename for LaTeX
 summary_full = summary_full.rename(columns={
-    "n_las": "Number of LAs",
-    "share_all_las": "Share of all LAs",
-    "n_ever_desert": "Number ever a desert",
-    "share_ever_desert": "Share ever a desert"})
+    "n_las": "Local Authorities (N)",
+    "share_all_las": "Local Authorities (prop.)",
+    "n_ever_desert": "Ever a desert (N)",
+    "share_ever_desert": "Ever a desert (prop.)"})
 
 # Export to LaTeX
 desert_summary_tex = summary_full.to_latex(
     index=False,
     float_format="%.3f",
-    caption=(
-        "Counts and shares of local authorities that ever become a legal aid "
-        "desert, overall and by rurality"
-    ),
+    caption=("Deserts by rurality"),
     label="tab:ever_desert_summary")
 
 with open(summary_stats / "ever_desert_summary.tex", "w") as f:
