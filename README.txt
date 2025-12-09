@@ -1,9 +1,3 @@
-TO DO:
-(1) Final code sanity CHECK and commenting
-(2) Determine package and language versions and ensure replication code runs as .py file with virtual ENVIRONMENT
-(3) README: including cut text, where datasets came from
-(4) Git compatability with LFS
-
 Legal Aid – Dataset User Guide
 Raw Data
 x raw datasets are used. Sources appended. They are saved in:
