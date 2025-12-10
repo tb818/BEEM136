@@ -26,6 +26,28 @@ FILE STRUCTURE AND REPRODUCTION
 Software requirements:
 Python 3.10 or higher
 Jupyter Notebook (code constructed in VS Code)
+ipykernel
+
+To obtain the data, run the following in a terminal:
+# Enter cd
+cd YOUR_DIR
+
+# Clone repository
+git clone https://github.com/tb818/BEEM136
+
+# Navigate to folder
+cd YOUR_DIR/BEEM136
+
+# Create and activate virtual environment for packages
+python -m venv .venv
+source .venv/Scripts/activate
+
+# Install specified Python packages. This may take some time for 
+pip install -r requirements.txt
+
+Then, open beem136_tb818_legal_aid_ew.ipynb and amend the project root to the relevant working directory. Subsequent paths are well-defined.
+
+If successful, this should yield the following file structure:
 
 BEEM136/
 │
@@ -46,45 +68,36 @@ BEEM136/
 ├── README (this file)
 └── beem136_tb818_legal_aid_ew.ipynb    # Jupyter Notebook code
 
-To obtain the raw data, do not use "Download ZIP". Instead:
+There should be in raw_data/
+                        legal-aid-statistics-civil-completions-provider-area-data-to-mar-2024.csv
+                        Local_Authority_District_(2022)_to_Local_Authority_District_(2023)_Lookup_for_EW.csv
+                        raw_census_2011_populations.csv
+                        raw_census_2011_ages.csv
+                        raw_census_2011_economic_activity.csv
+                        raw_census_2011_housing_tenure.csv
+                        raw_census_2011_ethnicity.csv
+                        census_la_converter.csv
+                        inflation_data.csv
+                        rural_urban_categories.csv
+                        LAD_DEC_2023_UK_BFC.shp
+                        LAD_DEC_2023_UK_BFC.shp
+                        LAD_DEC_2023_UK_BFC.cpg
+                        LAD_DEC_2023_UK_BFC.dbf
+                        LAD_DEC_2023_UK_BFC.prj
+                        LAD_DEC_2023_UK_BFC.shx
 
-1. Clone the repository:
-   git clone https://github.com/tb818/BEEM136
-2. Fetch Git LFS objects:
-   git lfs pull
-   git lfs checkout
+Due to an acknowledged issue with Git's 'defense in depth', the licensed version of Git from the University of Exeter prints a fatal error message cloning Git repositories using LFS (see https://github.com/git-lfs/git-lfs/issues/5749). Extensive testing has not found this to be an issue. The following steps are therefore unnecessary but included as an optional robustness check to kill the hook and re-checkout:
 
-To utilise .venv/ for reproduction, run the following commands from a terminal (Git Bash syntax employed):
-1. Navigate to project root:
-cd "YOUR_PATH/BEEM136"
+# Enter cd
+cd YOUR_DIR
 
-2. Create the virtual environment:
-python -m venv .venv
+# Clone repository
+git clone https://github.com/tb818/BEEM136
 
-3. Activate environment:
-source .venv/Scripts/activate
-
-4. Install relevant Python dependencies:
-pip install -r requirements.txt
-
-5. Ensure the following are present in raw_data:
-legal-aid-statistics-civil-completions-provider-area-data-to-mar-2024.csv
-Local_Authority_District_(2022)_to_Local_Authority_District_(2023)_Lookup_for_EW.csv
-raw_census_2011_populations.csv
-raw_census_2011_ages.csv
-raw_census_2011_economic_activity.csv
-raw_census_2011_housing_tenure.csv
-raw_census_2011_ethnicity.csv
-census_la_converter.csv
-inflation_data.csv
-rural_urban_categories.csv
-LAD_DEC_2023_UK_BFC.shp
-LAD_DEC_2023_UK_BFC.cpg
-LAD_DEC_2023_UK_BFC.dbf
-LAD_DEC_2023_UK_BFC.prj
-LAD_DEC_2023_UK_BFC.shx
-
-Open beem136_tb818_legal_aid_ew.ipynb and amend the project root to the relevant working directory. Subsequent paths are well-defined.
+# Killing the hook
+cd /c/YOUR_DIR/BEEM136
+rm .git/hooks/post-checkout
+git restore --source=HEAD :/
 
 =================================================================================================================================================================================
 DATA AVAILABILITY AND PROVENANCE
