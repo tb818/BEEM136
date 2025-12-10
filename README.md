@@ -25,9 +25,9 @@ FILE STRUCTURE AND REPRODUCTION
 =================================================================================================================================================================================
 Software requirements:
 Python 3.10 or higher
-Jupyter Notebook
+Jupyter Notebook (code constructed in VS Code)
 
-legal_aid/
+BEEM136/
 │
 ├── .venv/                              # Python virtual environment (NOTE: ignored by .gitignore, requires regeneration on each working directory)
 ├── cleaned_data/                       # Cleaned dataset
@@ -46,9 +46,17 @@ legal_aid/
 ├── README (this file)
 └── beem136_tb818_legal_aid_ew.ipynb    # Jupyter Notebook code
 
+To obtain the raw data, do not use "Download ZIP". Instead:
+
+1. Clone the repository:
+   git clone https://github.com/tb818/BEEM136
+2. Fetch Git LFS objects:
+   git lfs pull
+   git lfs checkout
+
 To utilise .venv/ for reproduction, run the following commands from a terminal (Git Bash syntax employed):
 1. Navigate to project root:
-cd "YOUR_PATH/legal_aid"
+cd "YOUR_PATH/BEEM136"
 
 2. Create the virtual environment:
 python -m venv .venv
