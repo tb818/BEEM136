@@ -26,9 +26,9 @@ FILE STRUCTURE AND REPRODUCTION
 Software requirements:
 Python 3.10 or higher
 Jupyter Notebook (code constructed in VS Code)
-ipykernel
+Git & Git Bash
 
-To obtain the data, run the following in a terminal:
+To obtain the data, run the following in Git Bash (other terminals may require syntax alteration):
 # Enter cd
 cd YOUR_DIR
 
@@ -45,7 +45,8 @@ source .venv/Scripts/activate
 # Install specified Python packages. This may take some time for 
 pip install -r requirements.txt
 
-Then, open beem136_tb818_legal_aid_ew.ipynb and amend the project root to the relevant working directory. Subsequent paths are well-defined.
+Then, open beem136_tb818_legal_aid_ew.ipynb as a Jupyter Notebook and amend the project root to the relevant working directory. Subsequent paths are well-defined.
+The code can now be executed using the .venv kernel (VS Code/Jupyter may require a restart).
 
 If successful, this should yield the following file structure:
 
@@ -255,11 +256,6 @@ The Notebook beem136_tb818_legal_aid_ew.ipynb is extensively commented for clari
 =================================================================================================================================================================================
 REFERENCES  
 =================================================================================================================================================================================
-
-Ministry of Justice (2024). Legal Aid Statistics.
-Office for National Statistics (2011). Census 2011 tables.
-Office for National Statistics (2023). Rural–Urban Classification.
-Office for National Statistics (2024). CPIH Inflation Index.
-Office for National Statistics (2023). Local Authority Boundaries (Shapefiles).
+Data cited in DATA AVAILABILITY AND PROVENANCE seciton.
 
 Lars Vilhuber, Connolly, M., Koren, M., Llull, J., & Morrow, P. (2022). A template README for social science replication packages (v1.1). Social Science Data Editors. https://doi.org/10.5281/zenodo.7293838
