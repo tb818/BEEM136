@@ -25,14 +25,14 @@ FILE STRUCTURE AND REPRODUCTION
 =================================================================================================================================================================================
 Software requirements:
 Python 3.10 or higher
-Jupyter Notebook (code constructed in VS Code)
-Git & Git Bash
+Jupyter Notebook (constructed in VS Code)
+Git, Git Bash, Git LFS (run: git lfs install)
 
 To obtain the data, run the following in Git Bash (other terminals may require syntax alteration):
 # Enter cd
 cd YOUR_DIR
 
-# Clone repository
+# Clone repository. See below for dealing with fatal message.
 git clone https://github.com/tb818/BEEM136
 
 # Navigate to folder
@@ -42,7 +42,7 @@ cd YOUR_DIR/BEEM136
 python -m venv .venv
 source .venv/Scripts/activate
 
-# Install specified Python packages. This may take some time for 
+# Install specified Python packages. This may take some time.
 pip install -r requirements.txt
 
 Then, open beem136_tb818_legal_aid_ew.ipynb as a Jupyter Notebook and amend the project root to the relevant working directory. Subsequent paths are well-defined.
