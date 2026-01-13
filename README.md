@@ -5,7 +5,7 @@ README: Replication Package for “Legal Aid Provision in England & Wales”
 Tom Burrows (tb818)
 BEEM136 – Research Methods
 University of Exeter
-December 2025
+January 2025
 
 Project available at: https://github.com/tb818/BEEM136
 
