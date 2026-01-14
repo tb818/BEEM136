@@ -5,7 +5,7 @@ README: Replication Package for “Legal Aid Provision in England & Wales”
 Tom Burrows (tb818)
 BEEM136 – Research Methods
 University of Exeter
-January 2025
+January 2026
 
 Project available at: https://github.com/tb818/BEEM136
 
@@ -87,7 +87,7 @@ There should be in raw_data/
                         LAD_DEC_2023_UK_BFC.prj
                         LAD_DEC_2023_UK_BFC.shx
 
-Due to an acknowledged issue with Git's 'defense in depth', the licensed version of Git from the University of Exeter prints a fatal error message cloning Git repositories using LFS (see https://github.com/git-lfs/git-lfs/issues/5749). Extensive testing has not found this to be an issue. The following steps are therefore unnecessary but included as an optional robustness check to kill the hook and re-checkout:
+Due to an acknowledged issue with Git's 'defense in depth', the licensed version of Git from the University of Exeter may print a fatal error message cloning Git repositories using LFS (see https://github.com/git-lfs/git-lfs/issues/5749). Extensive testing has not found this to be an issue. The following steps are therefore unnecessary but included as an optional robustness check to kill the hook and re-checkout:
 
 # Enter cd
 cd YOUR_DIR
